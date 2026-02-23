@@ -4,7 +4,7 @@
 
 ![HTML Souls Mini Edition](https://i.imgur.com/placeholder.jpg)
 
-## 🎮 What is this madness?
+## What is this madness?
 
 Ever wanted to play Dark Souls but thought "man, this is too big, too complex, and runs on actual hardware"? Well, fear not! I've crammed the essence of dying repeatedly into a single HTML file that runs in your browser.
 
