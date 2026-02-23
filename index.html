@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <title>HTML SOULS - Mini Edition</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚔️</text></svg>">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&display=swap');
 
@@ -370,7 +369,7 @@ SOULS <span id="soulCount">0</span>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 
 <script>
-// ===== VARIÁVEIS GLOBAIS =====
+// ===== MENU =====
 const menuOverlay = document.getElementById('menuOverlay');
 const pauseOverlay = document.getElementById('pauseOverlay');
 const loadingOverlay = document.getElementById('loadingOverlay');
@@ -400,11 +399,6 @@ let enemiesSlain = 0;
 
 let cameraAngle = 0;
 let targetCameraAngle = 0;
-let mouseX = 0;
-let mouseY = 0;
-let cameraVerticalAngle = 0.2;
-const MAX_VERTICAL_ANGLE = 0.5;
-const MIN_VERTICAL_ANGLE = -0.2;
 const cameraDistance = 5;
 const cameraHeight = 2.5;
 const cameraSmoothness = 0.1;
@@ -422,14 +416,13 @@ let savedGame = {
 
 let timeInterval;
 
-// ===== EVENT LISTENERS =====
 document.getElementById('continueBtn').addEventListener('click', continueGame);
 document.getElementById('newGameBtn').addEventListener('click', newGame);
 document.getElementById('settingsBtn').addEventListener('click', showSettings);
 document.getElementById('resumeBtn').addEventListener('click', resumeGame);
 document.getElementById('restartBtn').addEventListener('click', restartGame);
 document.getElementById('menuBtn').addEventListener('click', backToMenu);
-retryBtn.addEventListener('click', () => loadHighQualityModel());
+retryBtn.addEventListener('click', () => loadSelectedModel());
 useFallbackBtn.addEventListener('click', () => {
   loadingOverlay.style.display = 'none';
   createFallbackPlayer();
@@ -441,15 +434,11 @@ useFallbackBtn.addEventListener('click', () => {
 document.addEventListener('mousemove', (e) => {
   if (!gameStarted || gamePaused) return;
 
-  mouseX = (e.clientX / window.innerWidth) * 2 - 1;
-  mouseY = (e.clientY / window.innerHeight) * 2 - 1;
-  
-  targetCameraAngle = mouseX * Math.PI;
-  
-  cameraVerticalAngle += -mouseY * 0.02;
-  cameraVerticalAngle = Math.max(MIN_VERTICAL_ANGLE, Math.min(MAX_VERTICAL_ANGLE, cameraVerticalAngle));
+  const mousePercent = e.clientX / window.innerWidth;
+  targetCameraAngle = (mousePercent * 2 - 1) * Math.PI; // -PI to PI
 });
 
+// Keys
 document.addEventListener('keydown', (e) => {
   if(e.key === 'Escape') {
     if(gameStarted && !gamePaused) {
@@ -465,8 +454,801 @@ document.addEventListener('keydown', (e) => {
 
   const key = e.key.toLowerCase();
   keys[key] = true;
+});
 
-  if(key === 'l' && gameStarted && !gamePaused) {
+document.addEventListener('keyup', (e) => {
+  const key = e.key.toLowerCase();
+  keys[key] = false;
+});
+
+function continueGame() {
+  if(!player) {
+    loadingMessage.innerHTML = 'LOADING...';
+    loadingOverlay.style.display = 'flex';
+    setTimeout(() => {
+      loadingOverlay.style.display = 'none';
+    }, 2000);
+    return;
+  }
+
+  menuOverlay.style.display = 'none';
+  ui.style.display = 'block';
+  souls.style.display = 'block';
+  cameraHint.style.display = 'block';
+  gameStarted = true;
+
+  playerGroup.position.set(savedGame.position.x, savedGame.position.y, savedGame.position.z);
+  player.hp = player.maxHp || 5;
+  player.stamina = player.maxStamina || 100;
+  player.souls = savedGame.souls;
+  enemiesSlain = savedGame.enemiesSlain;
+  playTime = savedGame.playTime;
+
+  document.getElementById('soulCount').innerText = player.souls;
+  if (menuSouls) menuSouls.innerText = player.souls;
+  if (menuEnemies) menuEnemies.innerText = enemiesSlain;
+
+  if (menuTime) {
+    const minutes = Math.floor(playTime / 60);
+    const seconds = playTime % 60;
+    menuTime.innerText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+
+  if (timeInterval) clearInterval(timeInterval);
+  timeInterval = setInterval(() => {
+    playTime++;
+    const minutes = Math.floor(playTime / 60);
+    const seconds = playTime % 60;
+    if (menuTime) {
+      menuTime.innerText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+    // Auto-save
+    savedGame.playTime = playTime;
+    savedGame.souls = player.souls;
+    savedGame.enemiesSlain = enemiesSlain;
+    savedGame.position = {
+      x: playerGroup.position.x,
+      y: playerGroup.position.y,
+      z: playerGroup.position.z
+    };
+  }, 1000);
+}
+
+function newGame() {
+  if(!player) {
+    loadingMessage.innerHTML = 'LOADING...';
+    loadingOverlay.style.display = 'flex';
+    setTimeout(() => {
+      loadingOverlay.style.display = 'none';
+    }, 2000);
+    return;
+  }
+
+  menuOverlay.style.display = 'none';
+  ui.style.display = 'block';
+  souls.style.display = 'block';
+  cameraHint.style.display = 'block';
+  gameStarted = true;
+
+  playerGroup.position.set(2, 0, 2);
+  player.hp = player.maxHp || 5;
+  player.stamina = player.maxStamina || 100;
+  player.souls = 0;
+  enemiesSlain = 0;
+  playTime = 0;
+
+  document.getElementById('soulCount').innerText = '0';
+  if (menuSouls) menuSouls.innerText = '0';
+  if (menuEnemies) menuEnemies.innerText = '0';
+  if (menuTime) menuTime.innerText = '00:00';
+
+  enemies.forEach(enemy => scene.remove(enemy));
+  enemies.length = 0;
+  const loader = new THREE.GLTFLoader();
+  for (let i = 0; i < 3; i++) {
+    loadSingleSkeleton(loader, i, false);
+  }
+
+  if (timeInterval) clearInterval(timeInterval);
+  timeInterval = setInterval(() => {
+    playTime++;
+    const minutes = Math.floor(playTime / 60);
+    const seconds = playTime % 60;
+    if (menuTime) {
+      menuTime.innerText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+    // Auto-save
+    savedGame.playTime = playTime;
+    savedGame.souls = player.souls;
+    savedGame.enemiesSlain = enemiesSlain;
+    savedGame.position = {
+      x: playerGroup.position.x,
+      y: playerGroup.position.y,
+      z: playerGroup.position.z
+    };
+  }, 1000);
+}
+
+function showSettings() {
+  alert('⚔ SETTINGS ⚔\n\nVolume: 100%\nDifficulty: Normal\nCamera: Mouse Move\n\nPress ESC to return');
+}
+
+function pauseGame() {
+  gamePaused = true;
+  pauseOverlay.style.display = 'flex';
+  if (timeInterval) clearInterval(timeInterval);
+}
+
+function resumeGame() {
+  gamePaused = false;
+  pauseOverlay.style.display = 'none';
+  timeInterval = setInterval(() => {
+    playTime++;
+    const minutes = Math.floor(playTime / 60);
+    const seconds = playTime % 60;
+    if (menuTime) {
+      menuTime.innerText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+    // Auto-save
+    savedGame.playTime = playTime;
+    savedGame.souls = player.souls;
+    savedGame.enemiesSlain = enemiesSlain;
+    savedGame.position = {
+      x: playerGroup.position.x,
+      y: playerGroup.position.y,
+      z: playerGroup.position.z
+    };
+  }, 1000);
+}
+
+function restartGame() {
+  playerGroup.position.set(2, 0, 2);
+  player.hp = player.maxHp;
+  player.stamina = player.maxStamina;
+  player.souls = 0;
+  enemiesSlain = 0;
+  playTime = 0;
+
+  document.getElementById('soulCount').innerText = '0';
+  if (menuSouls) menuSouls.innerText = '0';
+  if (menuEnemies) menuEnemies.innerText = '0';
+  if (menuTime) menuTime.innerText = '00:00';
+
+  // Respawn enemies
+  enemies.forEach(enemy => scene.remove(enemy));
+  enemies.length = 0;
+  const loader = new THREE.GLTFLoader();
+  for (let i = 0; i < 3; i++) {
+    loadSingleSkeleton(loader, i, false);
+  }
+
+  gamePaused = false;
+  pauseOverlay.style.display = 'none';
+}
+
+function backToMenu() {
+  gameStarted = false;
+  gamePaused = false;
+  pauseOverlay.style.display = 'none';
+  menuOverlay.style.display = 'flex';
+  ui.style.display = 'none';
+  souls.style.display = 'none';
+  cameraHint.style.display = 'none';
+  bonfireHint.style.display = 'none';
+  if (timeInterval) clearInterval(timeInterval);
+}
+
+function loadSelectedModel() {
+  loadHighQualityModel();
+}
+
+// ===== LOAD HIGH QUALITY MODEL =====
+function loadHighQualityModel() {
+  loadingOverlay.style.display = 'flex';
+  loadingMessage.style.display = 'block';
+  loadingError.style.display = 'none';
+  retryBtn.style.display = 'none';
+  useFallbackBtn.style.display = 'none';
+
+  loadingMessage.innerHTML = 'LOADING...';
+
+  const timeout = setTimeout(() => {
+    if (!player) {
+      loadingError.style.display = 'block';
+      loadingError.innerHTML = 'CONNECTION LOST.';
+      retryBtn.style.display = 'inline-block';
+      useFallbackBtn.style.display = 'inline-block';
+      loadingMessage.style.display = 'none';
+    }
+  }, 30000);
+
+  loadCampFire();
+
+  const objLoader = new THREE.OBJLoader();
+  objLoader.setPath('./knight/');
+
+  objLoader.load('knight.obj',
+    (object) => {
+      clearTimeout(timeout);
+
+      tryApplyTextures(object);
+      processLoadedModel(object);
+      loadSkeletonEnemies();
+    },
+    (xhr) => {
+      const percent = Math.round(xhr.loaded / xhr.total * 100);
+      loadingMessage.innerHTML = `LOADING... ${percent}%`;
+    },
+    (error) => {
+      clearTimeout(timeout);
+      console.error('Erro:', error);
+      loadingError.style.display = 'block';
+      loadingError.innerHTML = 'LOAD FAILED.';
+      retryBtn.style.display = 'inline-block';
+      useFallbackBtn.style.display = 'inline-block';
+      loadingMessage.style.display = 'none';
+      createFallbackPlayer();
+    }
+  );
+
+  function tryApplyTextures(object) {
+    const textureLoader = new THREE.TextureLoader();
+
+    textureLoader.load('./knight/armor.jpg', (texture) => {
+      console.log('Armor texture loaded');
+      object.traverse((child) => {
+        if (child.isMesh) {
+          if (!child.material) {
+            child.material = new THREE.MeshStandardMaterial({ map: texture });
+          } else if (Array.isArray(child.material)) {
+            child.material.forEach(mat => { mat.map = texture; mat.needsUpdate = true; });
+          } else {
+            child.material.map = texture;
+            child.material.needsUpdate = true;
+          }
+        }
+      });
+    }, undefined, () => {});
+
+    textureLoader.load('./knight/gen.face.jpg', (texture) => {
+      console.log('Face texture loaded');
+      object.traverse((child) => {
+        if (child.isMesh) {
+          const nomeLower = child.name.toLowerCase();
+          if (nomeLower.includes('head') || nomeLower.includes('face')) {
+            if (Array.isArray(child.material)) {
+              child.material.forEach(mat => { mat.map = texture; mat.needsUpdate = true; });
+            } else {
+              child.material.map = texture;
+              child.material.needsUpdate = true;
+            }
+          }
+        }
+      });
+    }, undefined, () => {});
+  }
+
+  function processLoadedModel(object) {
+    const box = new THREE.Box3().setFromObject(object);
+    const originalHeight = box.max.y - box.min.y;
+    const targetHeight = 1.8;
+    const scale = targetHeight / originalHeight;
+
+    object.scale.set(scale, scale, scale);
+
+    const scaledBox = new THREE.Box3().setFromObject(object);
+    object.rotation.y = Math.PI;
+    object.position.y = -scaledBox.min.y;
+
+    const nomesEspada = ['sword', 'espada', 'weapon', 'blade'];
+    object.traverse((child) => {
+      if (child.isMesh) {
+        const nomeLower = child.name.toLowerCase();
+        if (nomesEspada.some(nome => nomeLower.includes(nome))) {
+          child.position.set(0.53, -0.54, 0.06);
+          child.rotation.set(0, 0.01, 0.01);
+        }
+      }
+    });
+
+    object.traverse((child) => {
+      if(child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+
+    while(playerGroup.children.length > 0) {
+      playerGroup.remove(playerGroup.children[0]);
+    }
+    playerGroup.add(object);
+
+    playerGroup.hp = 5;
+    playerGroup.maxHp = 5;
+    playerGroup.stamina = 100;
+    playerGroup.maxStamina = 100;
+    playerGroup.velY = 0;
+    playerGroup.onGround = true;
+    playerGroup.souls = 0;
+    playerGroup.invulnerable = false;
+    playerGroup.isRolling = false;
+    playerGroup.rollCooldown = 0;
+    playerGroup.rollVelocity = new THREE.Vector3(0, 0, 0);
+
+    player = playerGroup;
+    playerGroup.position.set(2, 0, 2);
+    scene.add(playerGroup);
+  }
+}
+
+// ===== LOAD CAMPFIRE =====
+function loadCampFire() {
+  const objLoader = new THREE.OBJLoader();
+
+  objLoader.setPath('./CampFire/');
+  objLoader.load('Campfire.obj', (object) => {
+    processCampFire(object);
+  }, undefined, () => {
+    objLoader.load('Campfire_clean.OBJ', (object) => {
+      processCampFire(object);
+    }, undefined, () => {
+      createSimpleBonfire();
+    });
+  });
+
+  function processCampFire(object) {
+    object.scale.set(0.025, 0.025, 0.025);
+    object.position.set(0, 0, 0);
+
+    object.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        if (!child.material) {
+          child.material = new THREE.MeshStandardMaterial({ color: 0x886644 });
+        }
+      }
+    });
+
+    addFireParticles(object);
+
+    if (bonfireModel) scene.remove(bonfireModel);
+    bonfireModel = object;
+    scene.add(object);
+  }
+
+  function addFireParticles(campfire) {
+    const fireParticles = [];
+    for(let i = 0; i < 8; i++) {
+      const particle = new THREE.Mesh(
+        new THREE.SphereGeometry(0.1, 4),
+        new THREE.MeshStandardMaterial({ color: 0xff6600, emissive: 0x442200 })
+      );
+      particle.userData = {
+        speed: 0.02 + Math.random() * 0.02,
+        offset: Math.random() * Math.PI * 2,
+        height: 0.3 + Math.random() * 0.5
+      };
+      particle.position.set(
+        (Math.random() - 0.5) * 0.3,
+        0.2,
+        (Math.random() - 0.5) * 0.3
+      );
+      particle.castShadow = true;
+      campfire.add(particle);
+      fireParticles.push(particle);
+    }
+    campfire.userData.fireParticles = fireParticles;
+  }
+
+  function createSimpleBonfire() {
+    const bonfire = new THREE.Group();
+
+    const base = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.8, 1, 0.3, 8),
+      new THREE.MeshStandardMaterial({ color: 0x886644 })
+    );
+    base.position.y = 0.15;
+    base.castShadow = true;
+    base.receiveShadow = true;
+    bonfire.add(base);
+
+    for(let i = 0; i < 5; i++) {
+      const log = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.15, 0.15, 0.8),
+        new THREE.MeshStandardMaterial({ color: 0xaa8866 })
+      );
+      log.rotation.z = (Math.random() - 0.5) * 0.5;
+      log.rotation.x = (Math.random() - 0.5) * 0.5;
+      log.position.set(
+        (Math.random() - 0.5) * 0.3,
+        0.4,
+        (Math.random() - 0.5) * 0.3
+      );
+      log.castShadow = true;
+      log.receiveShadow = true;
+      bonfire.add(log);
+    }
+
+    const fireParticles = [];
+    for(let i = 0; i < 10; i++) {
+      const particle = new THREE.Mesh(
+        new THREE.SphereGeometry(0.1, 4),
+        new THREE.MeshStandardMaterial({ color: 0xff6600, emissive: 0x442200 })
+      );
+      particle.userData = {
+        speed: 0.02 + Math.random() * 0.02,
+        offset: Math.random() * Math.PI * 2,
+        height: 0.3 + Math.random() * 0.5
+      };
+      particle.position.set(0, 0.3, 0);
+      particle.castShadow = true;
+      bonfire.add(particle);
+      fireParticles.push(particle);
+    }
+    bonfire.userData.fireParticles = fireParticles;
+
+    bonfire.scale.set(0.5, 0.5, 0.5);
+    bonfire.position.set(0, 0, 0);
+
+    if (bonfireModel) scene.remove(bonfireModel);
+    bonfireModel = bonfire;
+    scene.add(bonfire);
+  }
+}
+
+// ===== LOAD ENEMYS =====
+const enemies = [];
+const ENEMY_COLLISION_RADIUS = 1.2;
+
+function loadSkeletonEnemies() {
+  const loader = new THREE.GLTFLoader();
+  for (let i = 0; i < 3; i++) {
+    loadSingleSkeleton(loader, i, true);
+  }
+}
+
+function loadSingleSkeleton(loader, index, isInitialLoad = false) {
+  const angle = (index / 3) * Math.PI * 2;
+  const radius = 8;
+
+  loader.load(
+    './Enemys/Skeleton.glb',
+    (gltf) => {
+      const skeleton = gltf.scene;
+
+      skeleton.traverse((node) => {
+        if (node.isMesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+        }
+      });
+
+      skeleton.scale.set(0.4, 0.4, 0.4);
+      skeleton.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+
+      skeleton.userData = {
+        hp: 3,
+        maxHp: 3,
+        cooldown: 0,
+        isAlive: true
+      };
+
+      createHealthBar(skeleton);
+
+      const soul = new THREE.Mesh(
+        new THREE.SphereGeometry(0.25, 6),
+        new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0x442200 })
+      );
+      soul.position.y = 2.0;
+      soul.visible = false;
+      soul.userData.isSoul = true;
+      skeleton.add(soul);
+      skeleton.userData.soulMesh = soul;
+
+      if (gltf.animations && gltf.animations.length > 0) {
+        const mixer = new THREE.AnimationMixer(skeleton);
+        const action = mixer.clipAction(gltf.animations[0]);
+        action.play();
+        skeletonMixers.push(mixer);
+      }
+
+      scene.add(skeleton);
+      enemies.push(skeleton);
+
+      console.log('Skeleton loaded');
+
+      if (isInitialLoad && enemies.length >= 3 && !gameStarted) {
+        setTimeout(() => {
+          loadingOverlay.style.display = 'none';
+          menuOverlay.style.display = 'flex';
+        }, 500);
+      } else if (enemies.length >= 3 && !gameStarted) {
+        loadingOverlay.style.display = 'none';
+      }
+    },
+    undefined,
+    (error) => {
+      console.error('Erro ao carregar skeleton:', error);
+      createFallbackEnemy(index, isInitialLoad);
+    }
+  );
+}
+
+function createFallbackEnemy(index, isInitialLoad = false) {
+  const angle = (index / 3) * Math.PI * 2;
+  const radius = 8;
+
+  const e = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x880000 })
+  );
+  e.position.set(Math.cos(angle) * radius, 0.5, Math.sin(angle) * radius);
+  e.userData = { hp: 3, maxHp: 3, cooldown: 0, isAlive: true };
+  e.castShadow = true;
+  e.receiveShadow = true;
+
+  createHealthBar(e);
+
+  const soul = new THREE.Mesh(
+    new THREE.SphereGeometry(0.25, 6),
+    new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0x442200 })
+  );
+  soul.position.y = 1.2;
+  soul.visible = false;
+  soul.userData.isSoul = true;
+  e.add(soul);
+  e.userData.soulMesh = soul;
+
+  scene.add(e);
+  enemies.push(e);
+
+  if (isInitialLoad && enemies.length >= 3 && !gameStarted) {
+    loadingOverlay.style.display = 'none';
+    menuOverlay.style.display = 'flex';
+  }
+}
+
+function createHealthBar(enemy) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 50;
+  canvas.height = 8;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#330000';
+  ctx.fillRect(0, 0, 50, 8);
+  ctx.strokeStyle = '#000000';
+  ctx.strokeRect(0, 0, 50, 8);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.SpriteMaterial({ map: texture });
+  const sprite = new THREE.Sprite(material);
+  sprite.position.y = 5.7;
+  sprite.scale.set(1, 0.2, 1);
+  enemy.add(sprite);
+  enemy.userData.healthBar = { canvas, ctx, sprite };
+  updateHealthBar(enemy);
+}
+
+function updateHealthBar(enemy) {
+  if(!enemy.userData.healthBar) return;
+  const ctx = enemy.userData.healthBar.ctx;
+  const canvas = enemy.userData.healthBar.canvas;
+
+  ctx.clearRect(0, 0, 50, 8);
+  ctx.fillStyle = '#330000';
+  ctx.fillRect(0, 0, 50, 8);
+
+  const percent = enemy.userData.hp / enemy.userData.maxHp;
+  if(percent > 0.6) ctx.fillStyle = '#00ff00';
+  else if(percent > 0.3) ctx.fillStyle = '#ffff00';
+  else ctx.fillStyle = '#ff0000';
+
+  ctx.fillRect(1, 1, 48 * percent, 6);
+  ctx.strokeStyle = '#000000';
+  ctx.strokeRect(0, 0, 50, 8);
+
+  enemy.userData.healthBar.sprite.material.map.needsUpdate = true;
+}
+
+function createFallbackPlayer() {
+  const group = new THREE.Group();
+
+  // Body
+  const bodyGeo = new THREE.CylinderGeometry(0.3, 0.3, 1.5, 8);
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x6666ff });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.y = 0.75;
+  body.castShadow = true;
+  body.receiveShadow = true;
+  group.add(body);
+
+  // Head
+  const headGeo = new THREE.SphereGeometry(0.25, 8);
+  const headMat = new THREE.MeshStandardMaterial({ color: 0xffccaa });
+  const head = new THREE.Mesh(headGeo, headMat);
+  head.position.y = 1.5;
+  head.castShadow = true;
+  head.receiveShadow = true;
+  group.add(head);
+
+  // Arms
+  const armGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.8);
+  const armMat = new THREE.MeshStandardMaterial({ color: 0x6666ff });
+
+  const leftArm = new THREE.Mesh(armGeo, armMat);
+  leftArm.position.set(-0.4, 1.0, 0);
+  leftArm.rotation.z = 0.2;
+  leftArm.castShadow = true;
+  leftArm.receiveShadow = true;
+  group.add(leftArm);
+
+  const rightArm = new THREE.Mesh(armGeo, armMat);
+  rightArm.position.set(0.4, 1.0, 0);
+  rightArm.rotation.z = -0.2;
+  rightArm.castShadow = true;
+  rightArm.receiveShadow = true;
+  group.add(rightArm);
+
+  // Legs
+  const legGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.8);
+  const legMat = new THREE.MeshStandardMaterial({ color: 0x4444aa });
+
+  const leftLeg = new THREE.Mesh(legGeo, legMat);
+  leftLeg.position.set(-0.15, 0.4, 0);
+  leftLeg.castShadow = true;
+  leftLeg.receiveShadow = true;
+  group.add(leftLeg);
+
+  const rightLeg = new THREE.Mesh(legGeo, legMat);
+  rightLeg.position.set(0.15, 0.4, 0);
+  rightLeg.castShadow = true;
+  rightLeg.receiveShadow = true;
+  group.add(rightLeg);
+
+  group.hp = 5;
+  group.maxHp = 5;
+  group.stamina = 100;
+  group.maxStamina = 100;
+  group.velY = 0;
+  group.onGround = true;
+  group.souls = 0;
+  group.invulnerable = false;
+  group.isRolling = false;
+  group.rollCooldown = 0;
+  group.rollVelocity = new THREE.Vector3(0, 0, 0);
+
+  playerGroup.add(group);
+  player = group;
+  playerGroup.position.set(2, 1, 2);
+  scene.add(playerGroup);
+
+  loadingOverlay.style.display = 'none';
+  menuOverlay.style.display = 'flex';
+}
+
+// ===== SCENE =====
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x111122, 6, 30);
+
+const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 100);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+// Ligths
+scene.add(new THREE.HemisphereLight(0x446688, 0x222222, 1));
+const sun = new THREE.DirectionalLight(0xffeedd, 1.2);
+sun.position.set(5, 10, 5);
+sun.castShadow = true;
+sun.shadow.mapSize.width = 1024;
+sun.shadow.mapSize.height = 1024;
+scene.add(sun);
+
+const fillLight = new THREE.PointLight(0x446688, 0.5);
+fillLight.position.set(2, 5, 5);
+scene.add(fillLight);
+
+const fireLight = new THREE.PointLight(0xff6600, 0.8, 8);
+fireLight.position.set(0, 1, 0);
+scene.add(fireLight);
+
+// Ground
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(60,60),
+  new THREE.MeshStandardMaterial({color:0x1a1a1a})
+);
+floor.rotation.x = -Math.PI/2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+// ===== WALLS =====
+const wallMaterial = new THREE.MeshBasicMaterial({ visible: false });
+const wallHeight = 5;
+const wallThickness = 1;
+
+const walls = [
+  new THREE.Mesh(new THREE.BoxGeometry(60, wallHeight, wallThickness), wallMaterial),
+  new THREE.Mesh(new THREE.BoxGeometry(60, wallHeight, wallThickness), wallMaterial),
+  new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, 60), wallMaterial),
+  new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, 60), wallMaterial)
+];
+
+walls[0].position.set(0, wallHeight/2, -30);
+walls[1].position.set(0, wallHeight/2, 30);
+walls[2].position.set(-30, wallHeight/2, 0);
+walls[3].position.set(30, wallHeight/2, 0);
+
+walls.forEach(wall => scene.add(wall));
+
+// State
+const keys = {};
+let lockOn = false;
+let targetEnemy = null;
+let nearBonfire = false;
+
+let rollCooldownTimer = 0;
+const ROLL_COOLDOWN = 180;
+
+// ===== WALL COLISION =====
+function checkWallCollision(position) {
+  const margin = 1.5;
+  return (
+    Math.abs(position.x) > MAP_LIMIT - margin ||
+    Math.abs(position.z) > MAP_LIMIT - margin
+  );
+}
+
+// ===== FUNCTIONS =====
+function performRoll() {
+  if(!player) return;
+
+  if (rollCooldownTimer > 0) return;
+
+  player.stamina -= 30;
+  player.isRolling = true;
+  player.invulnerable = true;
+  player.rollCooldown = 45;
+  rollCooldownTimer = ROLL_COOLDOWN;
+
+  document.getElementById('rollIndicator').style.display = 'block';
+
+  let moveX = 0, moveZ = 0;
+  if(keys["a"]) moveX -= 1;
+  if(keys["d"]) moveX += 1;
+  if(keys["w"]) moveZ -= 1;
+  if(keys["s"]) moveZ += 1;
+
+  if(moveX === 0 && moveZ === 0) moveZ = 1;
+
+  const length = Math.sqrt(moveX*moveX + moveZ*moveZ);
+  moveX /= length;
+  moveZ /= length;
+
+  const forward = new THREE.Vector3(Math.sin(cameraAngle), 0, Math.cos(cameraAngle));
+  const right = new THREE.Vector3(Math.sin(cameraAngle + Math.PI/2), 0, Math.cos(cameraAngle + Math.PI/2));
+
+  player.rollVelocity.x = (forward.x * moveZ + right.x * moveX) * 0.8;
+  player.rollVelocity.z = (forward.z * moveZ + right.z * moveX) * 0.8;
+
+  setTimeout(() => {
+    if(player) {
+      player.isRolling = false;
+      player.invulnerable = false;
+      player.rollVelocity.set(0, 0, 0);
+      document.getElementById('rollIndicator').style.display = 'none';
+    }
+  }, 200);
+}
+
+addEventListener("keydown", e => {
+  if(!gameStarted || gamePaused || !player) return;
+  const key = e.key.toLowerCase();
+  keys[key] = true;
+
+  if(key === "l") {
     lockOn = !lockOn;
     if(lockOn && enemies.length > 0) {
       targetEnemy = enemies.reduce((closest, enemy) => {
@@ -478,16 +1260,17 @@ document.addEventListener('keydown', (e) => {
     }
   }
 
-  if(key === 'e' && gameStarted && !gamePaused && nearBonfire) restAtBonfire();
-  if(key === 'shift' && gameStarted && !gamePaused && player && player.onGround && player.stamina >= 30 && !player.isRolling) performRoll();
+  if(key === "e" && nearBonfire) restAtBonfire();
+  if(key === "shift" && player.onGround && player.stamina >= 30 && !player.isRolling) performRoll();
 });
 
-document.addEventListener('keyup', (e) => {
+addEventListener("keyup", e => {
   const key = e.key.toLowerCase();
   keys[key] = false;
 });
 
-document.addEventListener('mousedown', e => {
+// ATTACK
+addEventListener("mousedown", e => {
   if(e.button !== 0 || !gameStarted || gamePaused || !player) return;
   if(player.stamina < 20 || player.isRolling) return;
 
@@ -550,823 +1333,6 @@ document.addEventListener('mousedown', e => {
   }
 });
 
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
-
-// ===== FUNÇÕES DO MENU =====
-function continueGame() {
-  if(!player) {
-    loadingMessage.innerHTML = 'LOADING...';
-    loadingOverlay.style.display = 'flex';
-    setTimeout(() => {
-      loadingOverlay.style.display = 'none';
-    }, 2000);
-    return;
-  }
-
-  menuOverlay.style.display = 'none';
-  ui.style.display = 'block';
-  souls.style.display = 'block';
-  cameraHint.style.display = 'block';
-  gameStarted = true;
-
-  playerGroup.position.set(savedGame.position.x, savedGame.position.y, savedGame.position.z);
-  player.hp = player.maxHp || 5;
-  player.stamina = player.maxStamina || 100;
-  player.souls = savedGame.souls;
-  enemiesSlain = savedGame.enemiesSlain;
-  playTime = savedGame.playTime;
-
-  document.getElementById('soulCount').innerText = player.souls;
-  if (menuSouls) menuSouls.innerText = player.souls;
-  if (menuEnemies) menuEnemies.innerText = enemiesSlain;
-
-  if (menuTime) {
-    const minutes = Math.floor(playTime / 60);
-    const seconds = playTime % 60;
-    menuTime.innerText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  }
-
-  if (timeInterval) clearInterval(timeInterval);
-  timeInterval = setInterval(() => {
-    playTime++;
-    const minutes = Math.floor(playTime / 60);
-    const seconds = playTime % 60;
-    if (menuTime) {
-      menuTime.innerText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    }
-    savedGame.playTime = playTime;
-    savedGame.souls = player.souls;
-    savedGame.enemiesSlain = enemiesSlain;
-    savedGame.position = {
-      x: playerGroup.position.x,
-      y: playerGroup.position.y,
-      z: playerGroup.position.z
-    };
-  }, 1000);
-}
-
-function newGame() {
-  if(!player) {
-    loadingMessage.innerHTML = 'LOADING...';
-    loadingOverlay.style.display = 'flex';
-    setTimeout(() => {
-      loadingOverlay.style.display = 'none';
-    }, 2000);
-    return;
-  }
-
-  menuOverlay.style.display = 'none';
-  ui.style.display = 'block';
-  souls.style.display = 'block';
-  cameraHint.style.display = 'block';
-  gameStarted = true;
-
-  playerGroup.position.set(2, 0, 2);
-  player.hp = player.maxHp || 5;
-  player.stamina = player.maxStamina || 100;
-  player.souls = 0;
-  enemiesSlain = 0;
-  playTime = 0;
-
-  document.getElementById('soulCount').innerText = '0';
-  if (menuSouls) menuSouls.innerText = '0';
-  if (menuEnemies) menuEnemies.innerText = '0';
-  if (menuTime) menuTime.innerText = '00:00';
-
-  enemies.forEach(enemy => scene.remove(enemy));
-  enemies.length = 0;
-  const loader = new THREE.GLTFLoader();
-  for (let i = 0; i < 3; i++) {
-    loadSingleSkeleton(loader, i, false);
-  }
-
-  if (timeInterval) clearInterval(timeInterval);
-  timeInterval = setInterval(() => {
-    playTime++;
-    const minutes = Math.floor(playTime / 60);
-    const seconds = playTime % 60;
-    if (menuTime) {
-      menuTime.innerText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    }
-    savedGame.playTime = playTime;
-    savedGame.souls = player.souls;
-    savedGame.enemiesSlain = enemiesSlain;
-    savedGame.position = {
-      x: playerGroup.position.x,
-      y: playerGroup.position.y,
-      z: playerGroup.position.z
-    };
-  }, 1000);
-}
-
-function showSettings() {
-  alert('⚔ SETTINGS ⚔\n\nVolume: 100%\nDifficulty: Normal\nCamera: Mouse Move\n\nPress ESC to return');
-}
-
-function pauseGame() {
-  gamePaused = true;
-  pauseOverlay.style.display = 'flex';
-  if (timeInterval) clearInterval(timeInterval);
-}
-
-function resumeGame() {
-  gamePaused = false;
-  pauseOverlay.style.display = 'none';
-  timeInterval = setInterval(() => {
-    playTime++;
-    const minutes = Math.floor(playTime / 60);
-    const seconds = playTime % 60;
-    if (menuTime) {
-      menuTime.innerText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    }
-    savedGame.playTime = playTime;
-    savedGame.souls = player.souls;
-    savedGame.enemiesSlain = enemiesSlain;
-    savedGame.position = {
-      x: playerGroup.position.x,
-      y: playerGroup.position.y,
-      z: playerGroup.position.z
-    };
-  }, 1000);
-}
-
-function restartGame() {
-  playerGroup.position.set(2, 0, 2);
-  player.hp = player.maxHp;
-  player.stamina = player.maxStamina;
-  player.souls = 0;
-  enemiesSlain = 0;
-  playTime = 0;
-
-  document.getElementById('soulCount').innerText = '0';
-  if (menuSouls) menuSouls.innerText = '0';
-  if (menuEnemies) menuEnemies.innerText = '0';
-  if (menuTime) menuTime.innerText = '00:00';
-
-  enemies.forEach(enemy => scene.remove(enemy));
-  enemies.length = 0;
-  const loader = new THREE.GLTFLoader();
-  for (let i = 0; i < 3; i++) {
-    loadSingleSkeleton(loader, i, false);
-  }
-
-  gamePaused = false;
-  pauseOverlay.style.display = 'none';
-}
-
-function backToMenu() {
-  gameStarted = false;
-  gamePaused = false;
-  pauseOverlay.style.display = 'none';
-  menuOverlay.style.display = 'flex';
-  ui.style.display = 'none';
-  souls.style.display = 'none';
-  cameraHint.style.display = 'none';
-  bonfireHint.style.display = 'none';
-  if (timeInterval) clearInterval(timeInterval);
-}
-
-// ===== FUNÇÃO PRINCIPAL DE CARREGAMENTO =====
-function loadHighQualityModel() {
-  loadingOverlay.style.display = 'flex';
-  loadingMessage.style.display = 'block';
-  loadingError.style.display = 'none';
-  retryBtn.style.display = 'none';
-  useFallbackBtn.style.display = 'none';
-
-  loadingMessage.innerHTML = 'LOADING KNIGHT...';
-
-  const timeout = setTimeout(() => {
-    if (!player) {
-      console.log('Timeout loading knight - usando fallback');
-      createFallbackPlayer();
-      loadingMessage.innerHTML = 'LOADING COMPLETE (FALLBACK)';
-      setTimeout(() => {
-        loadingOverlay.style.display = 'none';
-        menuOverlay.style.display = 'flex';
-      }, 1000);
-    }
-  }, 10000);
-
-  // Primeiro carrega a fogueira e inimigos
-  loadCampFire();
-  loadSkeletonEnemies();
-
-  // Tenta carregar o knight com caminho absoluto
-  const objLoader = new THREE.OBJLoader();
-  
-  // Detecta se está no GitHub Pages
-  const basePath = window.location.hostname.includes('github.io') 
-    ? '/HTML-Souls/knight/' 
-    : './knight/';
-  
-  objLoader.setPath(basePath);
-
-  objLoader.load('knight.obj',
-    (object) => {
-      clearTimeout(timeout);
-      console.log('Knight loaded successfully!');
-
-      tryApplyTextures(object);
-      processLoadedModel(object);
-      
-      loadingMessage.innerHTML = 'LOADING COMPLETE!';
-      setTimeout(() => {
-        loadingOverlay.style.display = 'none';
-        menuOverlay.style.display = 'flex';
-      }, 500);
-    },
-    (xhr) => {
-      const percent = Math.round(xhr.loaded / xhr.total * 100);
-      loadingMessage.innerHTML = `LOADING KNIGHT... ${percent}%`;
-    },
-    (error) => {
-      clearTimeout(timeout);
-      console.error('Erro ao carregar knight:', error);
-      
-      loadingMessage.innerHTML = 'KNIGHT FAILED - USING FALLBACK';
-      createFallbackPlayer();
-      
-      setTimeout(() => {
-        loadingOverlay.style.display = 'none';
-        menuOverlay.style.display = 'flex';
-      }, 1500);
-    }
-  );
-
-  function tryApplyTextures(object) {
-    const textureLoader = new THREE.TextureLoader();
-    const texturePath = window.location.hostname.includes('github.io') 
-      ? '/HTML-Souls/knight/' 
-      : './knight/';
-
-    textureLoader.load(texturePath + 'armor.jpg', 
-      (texture) => {
-        console.log('Armor texture loaded');
-        applyTextureToModel(object, texture);
-      }, 
-      undefined, 
-      (err) => console.log('Armor texture not found, using default colors')
-    );
-
-    textureLoader.load(texturePath + 'gen.face.jpg', 
-      (texture) => {
-        console.log('Face texture loaded');
-        applyTextureToFace(object, texture);
-      },
-      undefined,
-      (err) => console.log('Face texture not found, using default')
-    );
-  }
-
-  function applyTextureToModel(object, texture) {
-    object.traverse((child) => {
-      if (child.isMesh) {
-        if (!child.material) {
-          child.material = new THREE.MeshStandardMaterial({ map: texture });
-        } else if (Array.isArray(child.material)) {
-          child.material.forEach(mat => { 
-            mat.map = texture; 
-            mat.needsUpdate = true; 
-          });
-        } else {
-          child.material.map = texture;
-          child.material.needsUpdate = true;
-        }
-      }
-    });
-  }
-
-  function applyTextureToFace(object, texture) {
-    object.traverse((child) => {
-      if (child.isMesh) {
-        const nomeLower = child.name.toLowerCase();
-        if (nomeLower.includes('head') || nomeLower.includes('face')) {
-          if (Array.isArray(child.material)) {
-            child.material.forEach(mat => { 
-              mat.map = texture; 
-              mat.needsUpdate = true; 
-            });
-          } else {
-            child.material.map = texture;
-            child.material.needsUpdate = true;
-          }
-        }
-      }
-    });
-  }
-
-  function processLoadedModel(object) {
-    const box = new THREE.Box3().setFromObject(object);
-    const originalHeight = box.max.y - box.min.y;
-    const targetHeight = 1.8;
-    const scale = targetHeight / originalHeight;
-
-    object.scale.set(scale, scale, scale);
-
-    const scaledBox = new THREE.Box3().setFromObject(object);
-    object.rotation.y = Math.PI;
-    object.position.y = -scaledBox.min.y;
-
-    const nomesEspada = ['sword', 'espada', 'weapon', 'blade'];
-    object.traverse((child) => {
-      if (child.isMesh) {
-        const nomeLower = child.name.toLowerCase();
-        if (nomesEspada.some(nome => nomeLower.includes(nome))) {
-          child.position.set(0.53, -0.54, 0.06);
-          child.rotation.set(0, 0.01, 0.01);
-        }
-      }
-    });
-
-    object.traverse((child) => {
-      if(child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-      }
-    });
-
-    while(playerGroup.children.length > 0) {
-      playerGroup.remove(playerGroup.children[0]);
-    }
-    playerGroup.add(object);
-
-    playerGroup.hp = 5;
-    playerGroup.maxHp = 5;
-    playerGroup.stamina = 100;
-    playerGroup.maxStamina = 100;
-    playerGroup.velY = 0;
-    playerGroup.onGround = true;
-    playerGroup.souls = 0;
-    playerGroup.invulnerable = false;
-    playerGroup.isRolling = false;
-    playerGroup.rollCooldown = 0;
-    playerGroup.rollVelocity = new THREE.Vector3(0, 0, 0);
-
-    player = playerGroup;
-    playerGroup.position.set(2, 0, 2);
-    scene.add(playerGroup);
-  }
-}
-
-// ===== CAMPFIRE =====
-function loadCampFire() {
-  const objLoader = new THREE.OBJLoader();
-
-  objLoader.setPath('./CampFire/');
-  objLoader.load('Campfire.obj', (object) => {
-    processCampFire(object);
-  }, undefined, () => {
-    objLoader.load('Campfire_clean.OBJ', (object) => {
-      processCampFire(object);
-    }, undefined, () => {
-      createFallbackBonfire();
-    });
-  });
-
-  function processCampFire(object) {
-    object.scale.set(0.025, 0.025, 0.025);
-    object.position.set(0, 0, 0);
-
-    object.traverse((child) => {
-      if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-        if (!child.material) {
-          child.material = new THREE.MeshStandardMaterial({ color: 0x886644 });
-        }
-      }
-    });
-
-    addFireParticles(object);
-
-    if (bonfireModel) scene.remove(bonfireModel);
-    bonfireModel = object;
-    scene.add(object);
-  }
-
-  function addFireParticles(campfire) {
-    const fireParticles = [];
-    for(let i = 0; i < 15; i++) {
-      const size = 0.1 + Math.random() * 0.15;
-      const particle = new THREE.Mesh(
-        new THREE.SphereGeometry(size, 4),
-        new THREE.MeshStandardMaterial({ 
-          color: 0xff6600, 
-          emissive: 0x442200,
-          transparent: true,
-          opacity: 0.8
-        })
-      );
-      particle.userData = {
-        speed: 0.01 + Math.random() * 0.03,
-        offset: Math.random() * Math.PI * 2,
-        height: 0.4 + Math.random() * 0.8,
-        startY: 0.2 + Math.random() * 0.3,
-        phase: Math.random() * Math.PI * 2
-      };
-      particle.position.set(
-        (Math.random() - 0.5) * 0.5,
-        particle.userData.startY,
-        (Math.random() - 0.5) * 0.5
-      );
-      particle.castShadow = true;
-      campfire.add(particle);
-      fireParticles.push(particle);
-    }
-    campfire.userData.fireParticles = fireParticles;
-  }
-
-  function createFallbackBonfire() {
-    const bonfire = new THREE.Group();
-
-    const base = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.8, 1, 0.3, 8),
-      new THREE.MeshStandardMaterial({ color: 0x886644 })
-    );
-    base.position.y = 0.15;
-    base.castShadow = true;
-    base.receiveShadow = true;
-    bonfire.add(base);
-
-    for(let i = 0; i < 5; i++) {
-      const log = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.15, 0.15, 0.8),
-        new THREE.MeshStandardMaterial({ color: 0xaa8866 })
-      );
-      log.rotation.z = (Math.random() - 0.5) * 0.5;
-      log.rotation.x = (Math.random() - 0.5) * 0.5;
-      log.position.set(
-        (Math.random() - 0.5) * 0.3,
-        0.4,
-        (Math.random() - 0.5) * 0.3
-      );
-      log.castShadow = true;
-      log.receiveShadow = true;
-      bonfire.add(log);
-    }
-
-    const fireParticles = [];
-    for(let i = 0; i < 15; i++) {
-      const size = 0.1 + Math.random() * 0.15;
-      const particle = new THREE.Mesh(
-        new THREE.SphereGeometry(size, 4),
-        new THREE.MeshStandardMaterial({ 
-          color: Math.random() > 0.3 ? 0xff6600 : 0xffaa00,
-          emissive: 0x442200,
-          transparent: true,
-          opacity: 0.8
-        })
-      );
-      particle.userData = {
-        speed: 0.01 + Math.random() * 0.03,
-        offset: Math.random() * Math.PI * 2,
-        height: 0.4 + Math.random() * 0.8,
-        startY: 0.2 + Math.random() * 0.3,
-        phase: Math.random() * Math.PI * 2
-      };
-      particle.position.set(
-        (Math.random() - 0.5) * 0.5,
-        particle.userData.startY,
-        (Math.random() - 0.5) * 0.5
-      );
-      particle.castShadow = true;
-      bonfire.add(particle);
-      fireParticles.push(particle);
-    }
-    bonfire.userData.fireParticles = fireParticles;
-
-    bonfire.position.set(0, 0, 0);
-    
-    if (bonfireModel) scene.remove(bonfireModel);
-    bonfireModel = bonfire;
-    scene.add(bonfire);
-  }
-}
-
-// ===== ENEMIES =====
-const enemies = [];
-const ENEMY_COLLISION_RADIUS = 1.2;
-
-function loadSkeletonEnemies() {
-  const loader = new THREE.GLTFLoader();
-  for (let i = 0; i < 3; i++) {
-    loadSingleSkeleton(loader, i, true);
-  }
-}
-
-function loadSingleSkeleton(loader, index, isInitialLoad = false) {
-  const angle = (index / 3) * Math.PI * 2;
-  const radius = 8;
-
-  loader.load(
-    './Enemys/Skeleton.glb',
-    (gltf) => {
-      const skeleton = gltf.scene;
-
-      skeleton.traverse((node) => {
-        if (node.isMesh) {
-          node.castShadow = true;
-          node.receiveShadow = true;
-        }
-      });
-
-      skeleton.scale.set(0.4, 0.4, 0.4);
-      skeleton.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
-
-      skeleton.userData = {
-        hp: 3,
-        maxHp: 3,
-        cooldown: 0,
-        isAlive: true
-      };
-
-      createHealthBar(skeleton);
-
-      const soul = new THREE.Mesh(
-        new THREE.SphereGeometry(0.25, 6),
-        new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0x442200 })
-      );
-      soul.position.y = 2.0;
-      soul.visible = false;
-      soul.userData.isSoul = true;
-      skeleton.add(soul);
-      skeleton.userData.soulMesh = soul;
-
-      if (gltf.animations && gltf.animations.length > 0) {
-        const mixer = new THREE.AnimationMixer(skeleton);
-        const action = mixer.clipAction(gltf.animations[0]);
-        action.play();
-        skeletonMixers.push(mixer);
-      }
-
-      scene.add(skeleton);
-      enemies.push(skeleton);
-
-      console.log('Skeleton loaded');
-    },
-    undefined,
-    (error) => {
-      console.error('Erro ao carregar skeleton:', error);
-      createFallbackEnemy(index, isInitialLoad);
-    }
-  );
-}
-
-function createFallbackEnemy(index, isInitialLoad = false) {
-  const angle = (index / 3) * Math.PI * 2;
-  const radius = 8;
-
-  const e = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 1, 1),
-    new THREE.MeshStandardMaterial({ color: 0x880000 })
-  );
-  e.position.set(Math.cos(angle) * radius, 0.5, Math.sin(angle) * radius);
-  e.userData = { hp: 3, maxHp: 3, cooldown: 0, isAlive: true };
-  e.castShadow = true;
-  e.receiveShadow = true;
-
-  createHealthBar(e);
-
-  const soul = new THREE.Mesh(
-    new THREE.SphereGeometry(0.25, 6),
-    new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0x442200 })
-  );
-  soul.position.y = 1.2;
-  soul.visible = false;
-  soul.userData.isSoul = true;
-  e.add(soul);
-  e.userData.soulMesh = soul;
-
-  scene.add(e);
-  enemies.push(e);
-}
-
-function createHealthBar(enemy) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 50;
-  canvas.height = 8;
-  const ctx = canvas.getContext('2d');
-
-  ctx.fillStyle = '#330000';
-  ctx.fillRect(0, 0, 50, 8);
-  ctx.strokeStyle = '#000000';
-  ctx.strokeRect(0, 0, 50, 8);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  const material = new THREE.SpriteMaterial({ map: texture });
-  const sprite = new THREE.Sprite(material);
-  sprite.position.y = 5.7;
-  sprite.scale.set(1, 0.2, 1);
-  enemy.add(sprite);
-  enemy.userData.healthBar = { canvas, ctx, sprite };
-  updateHealthBar(enemy);
-}
-
-function updateHealthBar(enemy) {
-  if(!enemy.userData.healthBar) return;
-  const ctx = enemy.userData.healthBar.ctx;
-  const canvas = enemy.userData.healthBar.canvas;
-
-  ctx.clearRect(0, 0, 50, 8);
-  ctx.fillStyle = '#330000';
-  ctx.fillRect(0, 0, 50, 8);
-
-  const percent = enemy.userData.hp / enemy.userData.maxHp;
-  if(percent > 0.6) ctx.fillStyle = '#00ff00';
-  else if(percent > 0.3) ctx.fillStyle = '#ffff00';
-  else ctx.fillStyle = '#ff0000';
-
-  ctx.fillRect(1, 1, 48 * percent, 6);
-  ctx.strokeStyle = '#000000';
-  ctx.strokeRect(0, 0, 50, 8);
-
-  enemy.userData.healthBar.sprite.material.map.needsUpdate = true;
-}
-
-// ===== FALLBACK PLAYER =====
-function createFallbackPlayer() {
-  const group = new THREE.Group();
-
-  const bodyGeo = new THREE.CylinderGeometry(0.3, 0.3, 1.5, 8);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x6666ff });
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.position.y = 0.75;
-  body.castShadow = true;
-  body.receiveShadow = true;
-  group.add(body);
-
-  const headGeo = new THREE.SphereGeometry(0.25, 8);
-  const headMat = new THREE.MeshStandardMaterial({ color: 0xffccaa });
-  const head = new THREE.Mesh(headGeo, headMat);
-  head.position.y = 1.5;
-  head.castShadow = true;
-  head.receiveShadow = true;
-  group.add(head);
-
-  const armGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.8);
-  const armMat = new THREE.MeshStandardMaterial({ color: 0x6666ff });
-
-  const leftArm = new THREE.Mesh(armGeo, armMat);
-  leftArm.position.set(-0.4, 1.0, 0);
-  leftArm.rotation.z = 0.2;
-  leftArm.castShadow = true;
-  leftArm.receiveShadow = true;
-  group.add(leftArm);
-
-  const rightArm = new THREE.Mesh(armGeo, armMat);
-  rightArm.position.set(0.4, 1.0, 0);
-  rightArm.rotation.z = -0.2;
-  rightArm.castShadow = true;
-  rightArm.receiveShadow = true;
-  group.add(rightArm);
-
-  const legGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.8);
-  const legMat = new THREE.MeshStandardMaterial({ color: 0x4444aa });
-
-  const leftLeg = new THREE.Mesh(legGeo, legMat);
-  leftLeg.position.set(-0.15, 0.4, 0);
-  leftLeg.castShadow = true;
-  leftLeg.receiveShadow = true;
-  group.add(leftLeg);
-
-  const rightLeg = new THREE.Mesh(legGeo, legMat);
-  rightLeg.position.set(0.15, 0.4, 0);
-  rightLeg.castShadow = true;
-  rightLeg.receiveShadow = true;
-  group.add(rightLeg);
-
-  group.hp = 5;
-  group.maxHp = 5;
-  group.stamina = 100;
-  group.maxStamina = 100;
-  group.velY = 0;
-  group.onGround = true;
-  group.souls = 0;
-  group.invulnerable = false;
-  group.isRolling = false;
-  group.rollCooldown = 0;
-  group.rollVelocity = new THREE.Vector3(0, 0, 0);
-
-  playerGroup.add(group);
-  player = group;
-  playerGroup.position.set(2, 1, 2);
-  scene.add(playerGroup);
-}
-
-// ===== SCENE =====
-const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x111122, 6, 30);
-
-const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 100);
-const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-document.body.appendChild(renderer.domElement);
-
-scene.add(new THREE.HemisphereLight(0x446688, 0x222222, 1));
-const sun = new THREE.DirectionalLight(0xffeedd, 1.2);
-sun.position.set(5, 10, 5);
-sun.castShadow = true;
-sun.shadow.mapSize.width = 1024;
-sun.shadow.mapSize.height = 1024;
-scene.add(sun);
-
-const fillLight = new THREE.PointLight(0x446688, 0.5);
-fillLight.position.set(2, 5, 5);
-scene.add(fillLight);
-
-const fireLight = new THREE.PointLight(0xff6600, 0.8, 8);
-fireLight.position.set(0, 1, 0);
-scene.add(fireLight);
-
-const floor = new THREE.Mesh(
-  new THREE.PlaneGeometry(60,60),
-  new THREE.MeshStandardMaterial({color:0x1a1a1a})
-);
-floor.rotation.x = -Math.PI/2;
-floor.receiveShadow = true;
-scene.add(floor);
-
-const wallMaterial = new THREE.MeshBasicMaterial({ visible: false });
-const wallHeight = 5;
-const wallThickness = 1;
-
-const walls = [
-  new THREE.Mesh(new THREE.BoxGeometry(60, wallHeight, wallThickness), wallMaterial),
-  new THREE.Mesh(new THREE.BoxGeometry(60, wallHeight, wallThickness), wallMaterial),
-  new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, 60), wallMaterial),
-  new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, 60), wallMaterial)
-];
-
-walls[0].position.set(0, wallHeight/2, -30);
-walls[1].position.set(0, wallHeight/2, 30);
-walls[2].position.set(-30, wallHeight/2, 0);
-walls[3].position.set(30, wallHeight/2, 0);
-
-walls.forEach(wall => scene.add(wall));
-
-const keys = {};
-let lockOn = false;
-let targetEnemy = null;
-let nearBonfire = false;
-
-let rollCooldownTimer = 0;
-const ROLL_COOLDOWN = 180;
-
-function checkWallCollision(position) {
-  const margin = 1.5;
-  return (
-    Math.abs(position.x) > MAP_LIMIT - margin ||
-    Math.abs(position.z) > MAP_LIMIT - margin
-  );
-}
-
-function performRoll() {
-  if(!player) return;
-  if (rollCooldownTimer > 0) return;
-
-  player.stamina -= 30;
-  player.isRolling = true;
-  player.invulnerable = true;
-  player.rollCooldown = 45;
-  rollCooldownTimer = ROLL_COOLDOWN;
-
-  document.getElementById('rollIndicator').style.display = 'block';
-
-  let moveX = 0, moveZ = 0;
-  if(keys["a"]) moveX -= 1;
-  if(keys["d"]) moveX += 1;
-  if(keys["w"]) moveZ -= 1;
-  if(keys["s"]) moveZ += 1;
-
-  if(moveX === 0 && moveZ === 0) moveZ = 1;
-
-  const length = Math.sqrt(moveX*moveX + moveZ*moveZ);
-  moveX /= length;
-  moveZ /= length;
-
-  const forward = new THREE.Vector3(Math.sin(cameraAngle), 0, Math.cos(cameraAngle));
-  const right = new THREE.Vector3(Math.sin(cameraAngle + Math.PI/2), 0, Math.cos(cameraAngle + Math.PI/2));
-
-  player.rollVelocity.x = (forward.x * moveZ + right.x * moveX) * 0.8;
-  player.rollVelocity.z = (forward.z * moveZ + right.z * moveX) * 0.8;
-
-  setTimeout(() => {
-    if(player) {
-      player.isRolling = false;
-      player.invulnerable = false;
-      player.rollVelocity.set(0, 0, 0);
-      document.getElementById('rollIndicator').style.display = 'none';
-    }
-  }, 200);
-}
-
 function collectSouls() {
   if(!player) return;
   enemies.forEach(enemy => {
@@ -1377,6 +1343,8 @@ function collectSouls() {
         document.getElementById('soulCount').innerText = player.souls;
         if (menuSouls) menuSouls.innerText = player.souls;
         enemy.userData.soulMesh.visible = false;
+
+        // Auto-save
         savedGame.souls = player.souls;
       }
     }
@@ -1450,27 +1418,6 @@ function applyEnemyCollision() {
   }
 }
 
-function rotatePlayerModel(direction) {
-  if (!playerGroup.children[0]) return;
-  
-  const model = playerGroup.children[0];
-  
-  if (model.children && model.children.length > 0) {
-    let targetRot = Math.atan2(direction.x, direction.z);
-    let diff = targetRot - model.rotation.y;
-    while(diff > Math.PI) diff -= Math.PI * 2;
-    while(diff < -Math.PI) diff += Math.PI * 2;
-    model.rotation.y += diff * 0.2;
-  } 
-  else if (model.isMesh) {
-    let targetRot = Math.atan2(direction.x, direction.z);
-    let diff = targetRot - model.rotation.y;
-    while(diff > Math.PI) diff -= Math.PI * 2;
-    while(diff < -Math.PI) diff += Math.PI * 2;
-    model.rotation.y += diff * 0.2;
-  }
-}
-
 function animate() {
   requestAnimationFrame(animate);
   const delta = clock.getDelta();
@@ -1493,14 +1440,9 @@ function animate() {
   if (bonfireModel && bonfireModel.userData.fireParticles) {
     bonfireModel.userData.fireParticles.forEach((particle) => {
       const time = Date.now() * particle.userData.speed + particle.userData.offset;
-      particle.position.y = particle.userData.startY + Math.sin(time) * particle.userData.height;
-      const scale = 0.8 + Math.sin(time * 3) * 0.3;
-      particle.scale.set(scale, scale, scale);
-      if (particle.material) {
-        particle.material.opacity = 0.5 + Math.sin(time * 2) * 0.3;
-      }
+      particle.position.y = 0.2 + Math.sin(time) * particle.userData.height;
+      particle.scale.setScalar(0.8 + Math.sin(time * 2) * 0.2);
     });
-    fireLight.intensity = 0.6 + Math.sin(Date.now() * 0.01) * 0.2;
   }
 
   let moveX = 0, moveZ = 0;
@@ -1561,9 +1503,12 @@ function animate() {
       }
     }
 
-    if(!lockOn && !player.isRolling && (moveX !== 0 || moveZ !== 0)) {
+    if(!lockOn && !player.isRolling && playerGroup.children[0] && (moveX !== 0 || moveZ !== 0)) {
       const moveDir = Math.atan2(moveX, moveZ) + cameraAngle;
-      rotatePlayerModel(new THREE.Vector3(Math.sin(moveDir), 0, Math.cos(moveDir)));
+      let playerAngleDiff = moveDir - playerGroup.children[0].rotation.y;
+      while(playerAngleDiff > Math.PI) playerAngleDiff -= Math.PI * 2;
+      while(playerAngleDiff < -Math.PI) playerAngleDiff += Math.PI * 2;
+      playerGroup.children[0].rotation.y += playerAngleDiff * 0.2;
     }
   }
 
@@ -1633,6 +1578,7 @@ function animate() {
   document.getElementById('hp').innerText = player.hp;
   document.getElementById('st').innerText = Math.floor(player.stamina);
 
+  // CAMERA
   if(lockOn && targetEnemy && targetEnemy.userData.isAlive) {
     const playerPos = playerGroup.position.clone();
     const enemyPos = targetEnemy.position.clone();
@@ -1642,13 +1588,12 @@ function animate() {
     camera.position.copy(playerPos.clone().add(camOffset));
     camera.lookAt(enemyPos);
   } else {
-    const camX = Math.sin(cameraAngle) * Math.cos(cameraVerticalAngle) * cameraDistance;
-    const camY = Math.sin(cameraVerticalAngle) * cameraDistance + cameraHeight;
-    const camZ = Math.cos(cameraAngle) * Math.cos(cameraVerticalAngle) * cameraDistance;
+    const camX = Math.sin(cameraAngle) * cameraDistance;
+    const camZ = Math.cos(cameraAngle) * cameraDistance;
 
     camera.position.set(
       playerGroup.position.x + camX,
-      playerGroup.position.y + camY,
+      playerGroup.position.y + cameraHeight,
       playerGroup.position.z + camZ
     );
 
@@ -1658,9 +1603,15 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-// ===== INICIAR =====
-loadHighQualityModel();
 animate();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+loadSelectedModel();
 </script>
 </body>
 </html>
